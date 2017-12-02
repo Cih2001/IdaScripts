@@ -7,13 +7,15 @@ class Register():
 	TYPE16 = 1
 	TYPE32 = 2
 	TYPE64 = 3
-
 	TYPEA = 4
 
-	GREG32 = ['eax','ebx','ecx']
+	GREG64 = ['eax','ebx','ecx','edx','esi','edi']
+	AREG64 = GREG64 + ['ebp','esp']
+	
+	GREG32 = ['eax','ebx','ecx','edx','esi','edi']
 	AREG32 = GREG32 + ['ebp','esp']
 
-	GREG16 = ['ax','bx','cx']
+	GREG16 = ['ax','bx','cx','dx','si','di']
 	AREG16 = GREG16 + ['bp','sp']
 
 	GREG8 = ['al','bl','cl' , 'ah', 'bh', 'ch']
@@ -76,13 +78,13 @@ def findCodeSeqInFunction(ea):
 	for i, head in enumerate(instructions_set):
 		if i < instructions_count-len(code_seq):
 			# clearing known_regs
-			known_regs = {}
+			known_regs.clear()
 			found = True;
 			for j, code in enumerate(code_seq):
 				if codeMatches(instructions_set[i+j], code) == False:
 					found = False
+					break
 			if found:
-				print "ff", head
 				result.append(head)
 	return result
 
@@ -126,7 +128,8 @@ def replaceRegisters(code):
 			result = result.replace(m.group(0),reg.toString(),1)
 	return result,replacements
 
-str_find = 'lea %GREG32X%,.*'
+str_find = AskStr('lea %GREG32X%,.*%AREG32Y%.*',"enter a regex")
+
 known_regs = {}
 for addr in findCodeSeqInFunction(here()):
 	print "0x%X " % addr
