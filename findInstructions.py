@@ -60,7 +60,7 @@ class Register():
 		if self.replacement == "":
 			return '(' + '|'.join(self.group) + ')'
 		else:
-			return self.replacement
+			return '(' + self.replacement + ')'
 	
 	
 def findCodeSeqInFunction(ea):
@@ -71,40 +71,62 @@ def findCodeSeqInFunction(ea):
 	instructions_count = len(instructions_set)
 	
 	code_seq = str_find.split(";")
+	
+	result = []
 	for i, head in enumerate(instructions_set):
 		if i < instructions_count-len(code_seq):
+			# clearing known_regs
+			known_regs = {}
 			found = True;
 			for j, code in enumerate(code_seq):
-				if codeMatches(instructions_set[i+j], code)[0]==False:
+				if codeMatches(instructions_set[i+j], code) == False:
 					found = False
-					break
 			if found:
-				print "0x%X" % head , idc.generate_disasm_line(head,GENDSM_FORCE_CODE)
-		
-	print "next addr: 0x%X" % idc.next_head(here(),0x401059)
+				print "ff", head
+				result.append(head)
+	return result
 
 def codeMatches(ea, code):
 	dis_asm = idc.generate_disasm_line(ea,GENDSM_FORCE_CODE)
-	
-	m = re.search('(?<=abc)def', 'abcdef')
-	return False,True;
+	regex_code,rep = replaceRegisters(code)
+	regex_code = re.sub('\s+', '\\s*', regex_code)
+
+	m = re.match(regex_code,dis_asm)
+	if m != None:
+		# we need to double check if two registers with same names are replaced with same registers
+		if len(rep) == 2:
+			if rep[0] == rep[1] and m.group(1) != m.group(2):
+				return False
+		if len(rep) > 2:
+			for i in range (0,len(rep)-2):
+				for j in range (i,len(rep)-1):
+					if rep[i] == rep[j] and m.group(i+1) != m.group(j+1):
+						return False
+		
+		# every thing is ok, let's update.
+		for i,r in rep.items():
+			known_regs[r].replacement = m.group(i+1)
+		return True
+	return False
 
 def replaceRegisters(code):
-	result = ""
+	result = code
 	matchs = re.finditer('%([^,]+?)%', code)
-	for m in matchs:
+	replacements = {}
+	for i, m in enumerate(matchs):
 		reg = Register(m.group(1))
 		kr = known_regs.get(reg.name)
 		if kr != None:
-			result = code.replace(m.group(0),kr.toString(),1)
+			result = result.replace(m.group(0),kr.toString(),1)
+			replacements[i] = reg.name
 		else:
 			if reg.name != "":
 				known_regs[reg.name]=reg
-			result = code.replace(m.group(0),reg.toString(),1)
-			
-	return result
+				replacements[i] = reg.name
+			result = result.replace(m.group(0),reg.toString(),1)
+	return result,replacements
 
-str_find = 'mov %GREG32X%, bl'
-known_regs = {'X':Register("GREG32X")}
-# findCodeSeqInFunction(here())
-print replaceRegisters(str_find)
+str_find = 'lea %GREG32X%,.*'
+known_regs = {}
+for addr in findCodeSeqInFunction(here()):
+	print "0x%X " % addr
