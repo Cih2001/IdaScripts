@@ -2,18 +2,67 @@ from idautils import *
 from idc import *
 import re
 
-GREG32 = ['eax','ebx','ecx']
-AREG32 = GREG32 + ['ebp','esp']
+class Register():
+	TYPE8 = 0
+	TYPE16 = 1
+	TYPE32 = 2
+	TYPE64 = 3
 
-GREG16 = ['eax','ebx','ecx']
-AREG16 = GREG16 + ['ebp','esp']
+	TYPEA = 4
 
-GREG8 = ['eax','ebx','ecx']
-AREG8 = GREG8 + ['ebp','esp']
+	GREG32 = ['eax','ebx','ecx']
+	AREG32 = GREG32 + ['ebp','esp']
 
-str_find = 'mov %GREG32%, bl'
-known_regs = {'GREG32X':'eax','GREG32X':'ebx'}
+	GREG16 = ['ax','bx','cx']
+	AREG16 = GREG16 + ['bp','sp']
 
+	GREG8 = ['al','bl','cl' , 'ah', 'bh', 'ch']
+	AREG8 = GREG8
+	"""A simple attempt to model a car."""
+	def __init__(self, str):
+		"""Initialize car attributes."""
+		self.type = 0
+		self.name = ""
+		self.replacement = ""
+		self.group = []
+		m = re.match('(.)REG([0-9](?:[0-9])?)(.*)',str)
+		if m != None:
+			if m.group(1) == 'A':
+				self.type = self.type | TYPEA
+			if m.group(2) == "8":
+				self.type = self.type | TYPE8
+				if self.type & TYPEA:
+					self.group = AREG8
+				else:
+					self.group = GREG8
+			if m.group(2) == "16":
+				self.type = self.type | TYPE16
+				if self.type & TYPEA:
+					self.group = AREG16
+				else:
+					self.group = GREG16
+			if m.group(2) == "32":
+				self.type = self.type | TYPE32
+				if self.type & TYPEA:
+					self.group = AREG32
+				else:
+					self.group = GREG32
+			if m.group(2) == "64":
+				self.type = self.type | TYPE64
+				if self.type & TYPEA:
+					self.group = AREG64
+				else:
+					self.group = GREG64
+			if m.group(3) != None:
+				self.name = m.group(3)
+	
+	def toString(self):
+		if self.replacement == "":
+			return '(' + '|'.join(self.group) + ')'
+		else:
+			return self.replacement
+	
+	
 def findCodeSeqInFunction(ea):
 	func_start_ea = get_func_attr(ea, FUNCATTR_START)
 	func_end_ea = get_func_attr(ea, FUNCATTR_END)
@@ -44,22 +93,18 @@ def replaceRegisters(code):
 	result = ""
 	matchs = re.finditer('%([^,]+?)%', code)
 	for m in matchs:
-		if known_regs != None:
-			reg_str = m.group(1)
-			
+		reg = Register(m.group(1))
+		kr = known_regs.get(reg.name)
+		if kr != None:
+			result = code.replace(m.group(0),kr.toString(),1)
 		else:
-			result = code.replace(m.group(0),'(' + '|'.join(GREG32) + ')',1)
+			if reg.name != "":
+				known_regs[reg.name]=reg
+			result = code.replace(m.group(0),reg.toString(),1)
+			
 	return result
 
-def getRegisterString(regString):
-	r = known_regs.get(regString)
-	if r == None:
-		# it's not a known register
-		m = re.match('(.)REG([0-9](?:[0-9])?)(.*)',regString)
-	else
-		return r
-
-
-	
+str_find = 'mov %GREG32X%, bl'
+known_regs = {'X':Register("GREG32X")}
 # findCodeSeqInFunction(here())
-print replaceRegisters(str_find,kr)
+print replaceRegisters(str_find)
